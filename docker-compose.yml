@@ -17,19 +17,19 @@ services:
     # Volumes para PERSISTÊNCIA
     volumes:
       # Workspace principal (seus projetos e código)
-      - ./workspace:/workspace
+      - devlab-workspace:/workspace
 
       # Extensões do VS Code (GitHub Copilot, etc)
-      - ./vscode-extensions:/home/dev/.local/share/code-server
+      - devlab-extensions:/home/dev/.local/share/code-server
 
       # Configurações do code-server
-      - ./vscode-config:/home/dev/.config/code-server
+      - devlab-config:/home/dev/.config/code-server
 
       # Configurações do Claude Code
-      - ./claude-config:/home/dev/.claude
+      - devlab-claude:/home/dev/.claude
 
       # npm global packages
-      - ./npm-global:/home/dev/.npm-global
+      - devlab-npm:/home/dev/.npm-global
 
     # Variáveis de ambiente
     environment:
@@ -54,3 +54,16 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+# Volumes nomeados (persistem entre restarts)
+volumes:
+  devlab-workspace:
+    name: devlab-workspace
+  devlab-extensions:
+    name: devlab-extensions
+  devlab-config:
+    name: devlab-config
+  devlab-claude:
+    name: devlab-claude
+  devlab-npm:
+    name: devlab-npm
