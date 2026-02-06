@@ -1,0 +1,235 @@
+# =============================================================================
+# DEV LAB - VS Code Server OFICIAL (Suporta GitHub Copilot!)
+# =============================================================================
+# ✅ OpenVSCode Server (VS Code oficial open-source)
+# ✅ SUPORTA GitHub Copilot e extensões oficiais da Microsoft!
+# ✅ Mesma base do ambiente anterior
+# =============================================================================
+
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=America/Sao_Paulo
+
+# ============================================
+# INSTALAR DEPENDÊNCIAS (mesma base)
+# ============================================
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl wget git ca-certificates gnupg lsb-release \
+    build-essential python3 python3-pip \
+    vim nano htop tree jq unzip zip rsync \
+    openssh-server openssh-client iputils-ping net-tools \
+    tzdata \
+    xvfb x11vnc fluxbox xterm novnc websockify \
+    libglib2.0-0 libnss3 libnspr4 libdbus-1-3 libatk1.0-0 \
+    libatk-bridge2.0-0 libatspi2.0-0 libx11-6 libxcomposite1 \
+    libxdamage1 libxext6 libxfixes3 libxrandr2 libgbm1 libdrm2 \
+    libxcb1 libxkbcommon0 libasound2 libcups2 libpango-1.0-0 \
+    libcairo2 fonts-liberation xdg-utils libx11-xcb1 libxcursor1 \
+    libgtk-3-0 libpangocairo-1.0-0 libcairo-gobject2 libgdk-pixbuf-2.0-0 \
+    libwoff1 libvpx7 libevent-2.1-7 libopus0 libgstreamer1.0-0 \
+    libgstreamer-plugins-base1.0-0 libharfbuzz-icu0 libenchant-2-2 \
+    libsecret-1-0 libhyphen0 libmanette-0.2-0 libflite1 libgles2 \
+    gstreamer1.0-libav gstreamer1.0-plugins-bad \
+    fonts-noto-color-emoji fonts-freefont-ttf fonts-dejavu-core \
+    sudo \
+    && rm -rf /var/lib/apt/lists/*
+
+# ============================================
+# INSTALAR NODE.JS 22.x
+# ============================================
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV NPM_CONFIG_PREFIX=/home/dev/.npm-global
+ENV PATH="/home/dev/.npm-global/bin:$PATH"
+
+# ============================================
+# INSTALAR FERRAMENTAS NPM GLOBAIS
+# ============================================
+RUN npm install -g \
+    @anthropic-ai/claude-code \
+    yarn pnpm typescript ts-node nodemon pm2 playwright \
+    && npm cache clean --force
+
+# ============================================
+# INSTALAR OPENVSCODE-SERVER (VS Code OFICIAL!)
+# ============================================
+# Versão mais recente do OpenVSCode Server da Gitpod
+RUN ARCH=$(dpkg --print-architecture) && \
+    if [ "$ARCH" = "amd64" ]; then \
+        OPENVSCODE_URL="https://github.com/gitpod-io/openvscode-server/releases/latest/download/openvscode-server-v1.85.1-linux-x64.tar.gz"; \
+    elif [ "$ARCH" = "arm64" ]; then \
+        OPENVSCODE_URL="https://github.com/gitpod-io/openvscode-server/releases/latest/download/openvscode-server-v1.85.1-linux-arm64.tar.gz"; \
+    fi && \
+    wget -O /tmp/openvscode-server.tar.gz "$OPENVSCODE_URL" && \
+    mkdir -p /opt/openvscode-server && \
+    tar -xzf /tmp/openvscode-server.tar.gz -C /opt/openvscode-server --strip-components=1 && \
+    rm /tmp/openvscode-server.tar.gz && \
+    chmod +x /opt/openvscode-server/bin/openvscode-server
+
+# Link para facilitar uso
+RUN ln -s /opt/openvscode-server/bin/openvscode-server /usr/local/bin/openvscode-server
+
+# ============================================
+# CRIAR USUÁRIO dev
+# ============================================
+RUN groupadd -g 1000 dev \
+    && useradd -m -u 1000 -g dev -s /bin/bash dev \
+    && echo "dev ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers \
+    && echo "dev:devlab123" | chpasswd
+
+# SSH
+RUN mkdir -p /var/run/sshd /home/dev/.ssh \
+    && chmod 700 /home/dev/.ssh \
+    && chown dev:dev /home/dev/.ssh \
+    && sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin no/' /etc/ssh/sshd_config \
+    && sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config \
+    && echo "AllowUsers dev" >> /etc/ssh/sshd_config
+
+# ============================================
+# CRIAR ESTRUTURA DE DIRETÓRIOS
+# ============================================
+RUN mkdir -p \
+    /workspace \
+    /workspace/screenshots \
+    /workspace/.vscode-backup \
+    /home/dev/.npm-global \
+    /home/dev/.npm \
+    /home/dev/.cache/ms-playwright \
+    /home/dev/.claude \
+    /home/dev/.openvscode-server/data/User \
+    /home/dev/.openvscode-server/extensions \
+    && chown -R dev:dev /workspace \
+    && chown -R dev:dev /home/dev
+
+# ============================================
+# INSTALAR PLAYWRIGHT
+# ============================================
+USER dev
+RUN npx playwright install chromium 2>/dev/null || true
+USER root
+
+# ============================================
+# CONFIGURAR VS CODE SETTINGS
+# ============================================
+RUN mkdir -p /home/dev/.openvscode-server/data/User && \
+    printf '{\n\
+  "workbench.colorTheme": "Default Dark+",\n\
+  "editor.fontSize": 14,\n\
+  "editor.tabSize": 2,\n\
+  "files.autoSave": "afterDelay",\n\
+  "remote.autoForwardPorts": false,\n\
+  "remote.autoForwardPortsSource": "output",\n\
+  "github.copilot.enable": {\n\
+    "*": true,\n\
+    "yaml": true,\n\
+    "markdown": true\n\
+  }\n\
+}\n\
+' > /home/dev/.openvscode-server/data/User/settings.json && \
+    chown -R dev:dev /home/dev/.openvscode-server
+
+# ============================================
+# BASH PROFILE
+# ============================================
+RUN printf '\n\
+export PATH="/home/dev/.npm-global/bin:$PATH"\n\
+export NPM_CONFIG_PREFIX="/home/dev/.npm-global"\n\
+export EDITOR=nano\n\
+export DISPLAY=:99\n\
+\n\
+alias ll="ls -lah"\n\
+alias gs="git status"\n\
+alias ga="git add"\n\
+alias gc="git commit"\n\
+alias gp="git push"\n\
+\n\
+# VS Code alias\n\
+alias code="openvscode-server"\n\
+\n\
+echo "🚀 Dev Lab com VS Code Server Oficial!"\n\
+echo "📍 Workspace: /workspace"\n\
+' >> /home/dev/.bashrc
+
+# ============================================
+# VARIÁVEIS DE AMBIENTE
+# ============================================
+ENV DISPLAY=:99
+ENV RESOLUTION=1920x1080x24
+
+# ============================================
+# SCRIPT DE INICIALIZAÇÃO
+# ============================================
+RUN printf '#!/bin/bash\n\
+set -e\n\
+\n\
+log() { echo "[$(date +%%H:%%M:%%S)] $1"; }\n\
+\n\
+log "🚀 Iniciando Dev Lab com VS Code Oficial..."\n\
+\n\
+# Diretórios\n\
+mkdir -p /var/run/sshd /home/dev/.openvscode-server/data/User /home/dev/.openvscode-server/extensions\n\
+chown -R dev:dev /home/dev/.openvscode-server /workspace\n\
+\n\
+# SSH\n\
+log "🔐 SSH..."\n\
+pgrep -x sshd > /dev/null || /usr/sbin/sshd\n\
+\n\
+# Xvfb\n\
+log "🖥️  Xvfb..."\n\
+if ! pgrep -x Xvfb > /dev/null; then\n\
+    sudo -u dev Xvfb :99 -screen 0 ${RESOLUTION:-1920x1080x24} -ac +extension GLX +render -noreset &\n\
+fi\n\
+\n\
+# Fluxbox\n\
+if ! pgrep -x fluxbox > /dev/null; then\n\
+    sudo -u dev DISPLAY=:99 fluxbox &\n\
+fi\n\
+\n\
+# x11vnc\n\
+log "📡 x11vnc..."\n\
+if ! pgrep -x x11vnc > /dev/null; then\n\
+    sudo -u dev x11vnc -display :99 -forever -shared -rfbport 5900 -nopw &\n\
+fi\n\
+\n\
+# noVNC\n\
+log "🌐 noVNC..."\n\
+if ! pgrep -f "websockify.*6080" > /dev/null; then\n\
+    sudo -u dev websockify --web=/usr/share/novnc/ 6080 localhost:5900 &\n\
+fi\n\
+\n\
+# OpenVSCode Server\n\
+log "💻 VS Code Server Oficial..."\n\
+if ! pgrep -f "openvscode-server" > /dev/null; then\n\
+    sudo -u dev /opt/openvscode-server/bin/openvscode-server \\\n\
+        --host 0.0.0.0 \\\n\
+        --port 8443 \\\n\
+        --without-connection-token \\\n\
+        --user-data-dir /home/dev/.openvscode-server/data \\\n\
+        --extensions-dir /home/dev/.openvscode-server/extensions \\\n\
+        /workspace &\n\
+fi\n\
+\n\
+log ""\n\
+log "✅ VS Code Server PRONTO!"\n\
+log "  📌 http://SEU-IP:8443"\n\
+log "  🤖 Agora suporta GitHub Copilot!"\n\
+log ""\n\
+\n\
+while true; do sleep 30; done\n\
+' > /start.sh && chmod +x /start.sh
+
+# ============================================
+# VOLUMES
+# ============================================
+VOLUME ["/workspace", "/home/dev/.openvscode-server", "/home/dev/.claude"]
+
+WORKDIR /workspace
+
+EXPOSE 22 3000 5000 6080 8080 8443
+
+USER root
+
+CMD ["/start.sh"]
