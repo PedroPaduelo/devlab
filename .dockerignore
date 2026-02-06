@@ -1,0 +1,49 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Docker
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Documentação
+README.md
+EASYPANEL-SETUP.md
+*.md
+
+# Volumes locais (não incluir no build)
+workspace/
+vscode-extensions/
+vscode-config/
+claude-config/
+npm-global/
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Temp
+tmp/
+temp/
+.cache/

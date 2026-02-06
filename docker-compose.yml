@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  devlab:
+    build: .
+    container_name: devlab
+    hostname: devlab
+
+    # Portas expostas
+    ports:
+      - "2222:22"    # SSH
+      - "3000:3000"  # App Node.js
+      - "5000:5000"  # App Python/Flask
+      - "6080:6080"  # noVNC (Desktop Visual)
+      - "8443:8443"  # VS Code (code-server)
+
+    # Volumes para PERSISTÊNCIA
+    volumes:
+      # Workspace principal (seus projetos e código)
+      - ./workspace:/workspace
+
+      # Extensões do VS Code (GitHub Copilot, etc)
+      - ./vscode-extensions:/home/dev/.local/share/code-server
+
+      # Configurações do code-server
+      - ./vscode-config:/home/dev/.config/code-server
+
+      # Configurações do Claude Code
+      - ./claude-config:/home/dev/.claude
+
+      # npm global packages
+      - ./npm-global:/home/dev/.npm-global
+
+    # Variáveis de ambiente
+    environment:
+      - TZ=America/Sao_Paulo
+      - DISPLAY=:99
+      - RESOLUTION=1920x1080x24
+
+    # SEM limites de recursos - usa o que precisar!
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '4'
+    #       memory: 4G
+
+    # Restart automático
+    restart: unless-stopped
+
+    # Healthcheck
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8443"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
